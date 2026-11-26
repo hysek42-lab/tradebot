@@ -1,0 +1,51 @@
+# AGRESIVNÍ varianta – vědomě vysoké riziko („hazard s pravidly“)
+# Aktivace: v .env nastav BOT_CONFIG=config-aggressive.yaml a restartuj bota.
+#
+# Oproti základní verzi: žádná ETF část, dvojnásobné riziko na obchod,
+# koncentrace do max. 3 pozic, volatilnější tituly, těsnější stopy.
+# Očekávej velké výkyvy oběma směry; série 5–6 ztrátových obchodů za sebou
+# znamená pokles účtu o 25–30 %.
+environment: demo
+dry_run: false
+
+allocation:
+  core_pct: 0.0
+  active_pct: 0.98
+  cash_buffer_pct: 0.02
+
+risk:
+  daily_loss_cap_pct: 0.12      # denní stopka až při -12 %
+  max_drawdown_halt_pct: 0.50   # poslední záchranná brzda: -50 % z maxima → stop do /start
+  risk_per_trade_pct: 0.05      # jeden obchod smí vzít 5 % účtu
+  max_position_pct: 0.50        # jedna pozice až polovina účtu
+  max_positions: 3
+  min_order_value: 10
+  min_order_value_by_ccy: {CZK: 250, EUR: 10, USD: 10, GBP: 10}
+
+active:
+  scan_every_minutes: 10
+  skip_first_minutes_after_open: 15
+  breakout_lookback_days: 10    # kratší okno → víc signálů, rychlejší obchody
+  trend_sma_days: 20
+  atr_days: 10
+  stop_atr_mult: 1.5
+  trail_atr_mult: 2.0
+  max_hold_days: 8
+  min_atr_pct: 0.03             # jen opravdu pohyblivé akcie
+  max_atr_pct: 0.20
+  min_price: 3
+  min_dollar_volume: 15000000
+  universe: [TSLA, NVDA, AMD, PLTR, COIN, MSTR, HOOD, SOFI, RBLX, SHOP,
+             ARM, SMCI, IONQ, RGTI, RKLB, ASTS, HIMS, UPST, AFRM, CVNA,
+             APP, SOUN, MARA, RIOT, CRWD, NET, SNOW, U, AI, PATH]
+
+core:
+  run_weekday: 0
+  dip_threshold_pct: 0.10
+  normal_fill_fraction: 0.25
+  etfs: []
+
+order:
+  qty_decimals: 2
+
+report_time: "22:20"

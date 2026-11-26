@@ -97,6 +97,9 @@ class Engine:
         self.handle_commands()
         summary = self.client.summary()
         self.account_ccy = summary.get("currency", self.account_ccy)
+        by_ccy = self.cfg["risk"].get("min_order_value_by_ccy") or {}
+        if self.account_ccy in by_ccy:
+            self.cfg["risk"]["min_order_value"] = by_ccy[self.account_ccy]
         total = float(summary["totalValue"])
         cash = float(summary["cash"]["availableToTrade"])
         day = self._now().date().isoformat()

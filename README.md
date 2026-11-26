@@ -31,6 +31,17 @@ k cílové váze. V propadu (10 % a víc pod ročním maximem) dokoupí celý ro
 
 Všechny parametry jsou v `config.yaml`.
 
+## Agresivní varianta (`config-aggressive.yaml`)
+
+Vědomě hazardní režim: celý účet v aktivních obchodech, žádná ETF část, 5 % účtu
+v riziku na obchod, max. 3 pozice (každá až polovina účtu), volatilnější akcie
+(TSLA, COIN, MSTR, IONQ, RKLB…), kratší signály a těsnější stopy.
+
+Zapnutí: v `.env` nastav `BOT_CONFIG=config-aggressive.yaml` a `systemctl restart tradebot`.
+
+Počítej s tím, že série ztrát může účet srazit o třetinu za pár týdnů. Poslední brzda
+zůstává: při poklesu o 50 % z maxima se bot zastaví do tvého `/start`.
+
 ## Ovládání z mobilu (Telegram)
 
 | Příkaz | Co udělá |

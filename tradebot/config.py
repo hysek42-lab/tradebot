@@ -20,7 +20,8 @@ def load_env(path: Path) -> None:
 
 def load_config(path: Path | None = None) -> dict:
     load_env(ROOT / ".env")
-    cfg = yaml.safe_load((path or ROOT / "config.yaml").read_text())
+    name = os.environ.get("BOT_CONFIG", "config.yaml")
+    cfg = yaml.safe_load((path or ROOT / name).read_text())
     env = cfg["environment"]
     if env not in ("demo", "live"):
         raise ValueError("environment must be 'demo' or 'live'")

@@ -162,7 +162,7 @@ def test_sizing_respects_risk_and_caps(cfg):
     # little cash -> capped by available
     assert size_active(7000, 500, 100, 90, 1.0, cfg) == 5
     # below min order value -> skip
-    assert size_active(7000, 20, 100, 90, 1.0, cfg) == 0
+    assert size_active(7000, 5, 100, 90, 1.0, cfg) == 0
 
 
 def test_guards(cfg):
@@ -294,3 +294,20 @@ def test_dry_run_sends_no_orders(cfg):
     eng, tg = make_engine(cfg, broker, data)
     eng.cycle()
     assert broker.orders == [] and any("DRY RUN" in m for m in tg.sent)
+
+
+def test_aggressive_config_loads_and_trades(tmp_path, monkeypatch):
+    from tradebot.config import load_config
+    monkeypatch.setenv("BOT_CONFIG", "config-aggressive.yaml")
+    monkeypatch.setenv("BOT_DATA_DIR", str(tmp_path))
+    c = load_config()
+    assert c["allocation"]["core_pct"] == 0 and c["risk"]["max_positions"] == 3
+    c["active"]["universe"] = ["UPPY"]
+    up = make_df(0.006, vol=0.02, seed=3)
+    up["High"], up["Low"] = up["Close"] * 1.025, up["Close"] * 0.975
+    entry = float(up["High"].iloc[-10:].max()) * 1.01
+    broker = FakeBroker()
+    broker.prices["UPPY_US_EQ"] = entry
+    eng, tg = make_engine(c, broker, FakeData({"UPPY": up}, {"UPPY": entry}))
+    eng.cycle()
+    assert broker.orders and broker.orders[0][0] == "UPPY_US_EQ"

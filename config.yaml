@@ -19,7 +19,8 @@ risk:
   risk_per_trade_pct: 0.025     # kolik % aktivního kapitálu může jeden obchod ztratit, když trefí stop-loss
   max_position_pct: 0.30        # max podíl jedné pozice na aktivním kapitálu
   max_positions: 5
-  min_order_value: 25           # v měně účtu; menší obchody nedělá (poplatky, šum)
+  min_order_value: 10           # záloha, pokud měna účtu není níže
+  min_order_value_by_ccy: {CZK: 250, EUR: 10, USD: 10, GBP: 10}  # menší obchody nedělá (poplatky, šum)
 
 # Aktivní strategie: momentum breakout (swing, dny až týdny)
 active:
