@@ -1,0 +1,16 @@
+[Unit]
+Description=Trading bot (Trading 212)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=tradebot
+WorkingDirectory=/opt/tradebot
+ExecStart=/opt/tradebot/.venv/bin/python -m tradebot.main
+Restart=always
+RestartSec=30
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=multi-user.target

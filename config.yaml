@@ -1,0 +1,61 @@
+# Konfigurace obchodního bota
+# Prostředí: "demo" (fiktivní peníze) nebo "live" (skutečné peníze).
+# Na live přepni až po 2–3 týdnech na demu.
+environment: demo
+
+# dry_run: true = bot jen loguje, co by udělal, žádné příkazy neposílá
+dry_run: false
+
+# Rozdělení kapitálu
+allocation:
+  core_pct: 0.30     # dlouhodobá část (ETF)
+  active_pct: 0.70   # aktivní krátkodobé obchody
+  cash_buffer_pct: 0.02  # rezerva, kterou bot nikdy neinvestuje
+
+# Pojistky
+risk:
+  daily_loss_cap_pct: 0.06      # při denní ztrátě 6 % celkové hodnoty bot ten den přestane otevírat obchody
+  max_drawdown_halt_pct: 0.35   # při poklesu o 35 % z maxima se bot úplně zastaví, dokud mu nedáš /start
+  risk_per_trade_pct: 0.025     # kolik % aktivního kapitálu může jeden obchod ztratit, když trefí stop-loss
+  max_position_pct: 0.30        # max podíl jedné pozice na aktivním kapitálu
+  max_positions: 5
+  min_order_value: 25           # v měně účtu; menší obchody nedělá (poplatky, šum)
+
+# Aktivní strategie: momentum breakout (swing, dny až týdny)
+active:
+  scan_every_minutes: 15
+  skip_first_minutes_after_open: 30
+  breakout_lookback_days: 20
+  trend_sma_days: 50
+  atr_days: 14
+  stop_atr_mult: 2.0         # počáteční stop-loss = vstup - 2×ATR
+  trail_atr_mult: 3.0        # posuvný stop = maximum od vstupu - 3×ATR
+  max_hold_days: 15
+  min_atr_pct: 0.02          # chceme volatilní tituly...
+  max_atr_pct: 0.12          # ...ale ne úplná kasina
+  min_price: 5
+  min_dollar_volume: 20000000
+  universe: [NVDA, AMD, TSLA, META, AMZN, GOOGL, MSFT, AAPL, AVGO, PLTR,
+             COIN, MSTR, SHOP, NFLX, CRWD, SNOW, UBER, ABNB, MU, ARM,
+             HOOD, SOFI, RBLX, NET, DDOG, PANW, ANET, MRVL, TSM, ASML]
+
+# Dlouhodobá strategie: postupné nákupy ETF, víc při propadu
+core:
+  run_weekday: 0             # 0 = pondělí
+  dip_threshold_pct: 0.10    # propad od ročního maxima, při kterém dokoupí celý rozdíl
+  normal_fill_fraction: 0.25 # jinak dokoupí 25 % rozdílu (postupné nakupování)
+  etfs:
+    - name: Vanguard S&P 500 UCITS (Acc)
+      isin: IE00BFMXXD54
+      yahoo: VUAA.L
+      weight: 0.6
+    - name: Vanguard FTSE All-World UCITS (Acc)
+      isin: IE00BK5BQT80
+      yahoo: VWCE.DE
+      weight: 0.4
+
+order:
+  qty_decimals: 2
+
+# Denní report na Telegram (čas Praha)
+report_time: "22:20"
