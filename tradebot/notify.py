@@ -7,11 +7,12 @@ log = logging.getLogger(__name__)
 
 
 class Telegram:
-    def __init__(self, token: str, chat_id: str):
+    def __init__(self, token: str, chat_id: str, state=None):
         self.token = token
         self.chat_id = str(chat_id)
         self.enabled = bool(token and chat_id)
-        self._offset = 0
+        self.state = state  # persists the update offset between runs (GitHub Actions)
+        self._offset = int(state.get("tg_offset", 0)) if state else 0
 
     def send(self, text: str) -> None:
         log.info("NOTIFY: %s", text.replace("\n", " | "))
@@ -37,6 +38,8 @@ class Telegram:
         cmds = []
         for u in updates:
             self._offset = u["update_id"] + 1
+            if self.state:
+                self.state.set("tg_offset", self._offset)
             msg = u.get("message") or {}
             if str(msg.get("chat", {}).get("id")) != self.chat_id:
                 continue  # ignore strangers

@@ -15,8 +15,8 @@ from .t212 import T212Client
 
 def build(cfg) -> Engine:
     client = T212Client(cfg["environment"], cfg["api_key"], cfg["api_secret"])
-    tg = Telegram(cfg["telegram_token"], cfg["telegram_chat_id"])
     state = State(cfg["data_dir"] / "bot.sqlite")
+    tg = Telegram(cfg["telegram_token"], cfg["telegram_chat_id"], state)
     return Engine(cfg, client, MarketData(), state, tg)
 
 
@@ -33,8 +33,16 @@ def main() -> None:
     log = logging.getLogger("tradebot")
 
     engine = build(cfg)
-    if args.once:
-        engine.cycle()
+    if args.once:  # GitHub Actions mode: one cycle per scheduled run
+        try:
+            engine.cycle()
+        except Exception as e:
+            log.error("cycle failed: %s\n%s", e, traceback.format_exc())
+            last = engine.state.get("last_error_ts", 0)
+            if time.time() - last > 1800:
+                engine.tg.send(f"Chyba v cyklu: {e}")
+                engine.state.set("last_error_ts", time.time())
+            raise
         return
 
     engine.tg.send(f"Bot spuštěn ({cfg['environment']}{', dry run' if cfg.get('dry_run') else ''}).")

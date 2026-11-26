@@ -1,6 +1,6 @@
 # Obchodní bot pro Trading 212
 
-Bot běží nonstop na malém serveru, obchoduje podle pevných pravidel přes Trading 212 API
+Bot se sám spouští přes GitHub Actions (nebo běží na serveru), obchoduje podle pevných pravidel přes Trading 212 API
 a posílá ti zprávy na Telegram. Žádné AI za běhu, žádné kredity.
 
 > Experiment s penězi, které můžeš ztratit. Strategie vychází z ověřených principů
@@ -53,36 +53,55 @@ zůstává: při poklesu o 50 % z maxima se bot zastaví do tvého `/start`.
 
 Navíc dostaneš zprávu o každém obchodu a denní report ve 22:20.
 
-## Nastavení krok za krokem
+## Spuštění přes GitHub Actions (zdarma, bez serveru)
 
-### 1. Telegram bot (5 minut)
-1. V Telegramu napiš **@BotFather** → `/newbot` → zvol jméno → dostaneš **token**.
-2. Napiš svému novému botovi libovolnou zprávu.
-3. Otevři v prohlížeči `https://api.telegram.org/bot<TOKEN>/getUpdates` a najdi
-   `"chat":{"id": ...}` → to je **chat ID**.
+Bot se spouští sám každých 5 minut v pracovní dny během obchodních hodin v USA.
+GitHub plánované běhy občas o pár minut zpozdí; ochranu před velkou ztrátou drží
+stop příkazy přímo u Trading 212, ty na botovi nezávisí.
+
+### 1. Telegram bot
+1. V Telegramu napiš **@BotFather** (s modrou fajfkou) → `/newbot` → dostaneš **token**.
+2. Napiš svému botovi libovolnou zprávu.
+3. Otevři `https://api.telegram.org/bot<TOKEN>/getUpdates` a najdi `"chat":{"id": ...}` → **chat ID**.
 
 ### 2. Trading 212 API klíč
-V aplikaci přepni na **Practice (demo)** účet → Nastavení → API → vygeneruj klíč.
-Povol oprávnění pro čtení účtu, portfolia, metadat a zadávání příkazů.
-Klíč i secret si ulož, ukáže se jen jednou.
+Practice (demo) účet → Nastavení → API → vygeneruj klíč s oprávněním pro účet,
+portfolio, metadata, historii a zadávání příkazů.
 
-### 3. Server
-Nejlevnější VPS s Ubuntu 24.04 (např. Hetzner, DigitalOcean, Contabo – pár eur měsíčně) stačí.
-Přihlas se přes SSH (z mobilu třeba aplikací Termius) a spusť:
+### 3. Klíče do GitHubu (jde i z mobilu v prohlížeči)
+Repozitář → **Settings → Secrets and variables → Actions**:
+
+- záložka **Secrets** → **New repository secret**, postupně přidej:
+  `T212_DEMO_API_KEY`, `T212_DEMO_API_SECRET`, `TELEGRAM_TOKEN`, `TELEGRAM_CHAT_ID`
+- záložka **Variables** → **New repository variable**:
+  `BOT_CONFIG` = `config-aggressive.yaml` (nebo `config.yaml` pro základní verzi)
+
+### 4. Zapnutí a první test
+Záložka **Actions** → pokud se ptá, povol workflows → vyber **tradebot** →
+**Run workflow**. Za minutu uvidíš výsledek (zelená = OK) a pak už běží samo.
+
+### 5. Přechod na ostré peníze (po 2–3 týdnech na demu)
+Přidej secrets `T212_LIVE_API_KEY` a `T212_LIVE_API_SECRET` a v konfiguraci
+přepni `environment: live` (to ti udělám já).
+
+### Limity
+- Veřejný repozitář: minuty v Actions zdarma bez omezení.
+- Soukromý repozitář: 2 000 minut měsíčně zdarma, bot spotřebuje kolem 2 000–2 400.
+  Buď repozitář nech veřejný (kód neobsahuje žádné klíče, ty jsou v Secrets),
+  nebo zvětši interval v `.github/workflows/tradebot.yml` na `*/10`.
+- Stav bota (pozice, historie) se ukládá do cache GitHub Actions. Kdyby se
+  smazala, bot zapomene posuvné stopy, ale stop příkazy u brokera zůstanou.
+
+## Alternativa: vlastní server (VPS)
+
+Kdybys chtěl reakci do minuty, bot umí běžet i nonstop na serveru:
 
 ```bash
-git clone https://github.com/<tvuj-ucet>/tradebot.git /opt/tradebot
+git clone https://github.com/hysek42-lab/tradebot.git /opt/tradebot
 bash /opt/tradebot/deploy/install.sh
-nano /opt/tradebot/.env        # vlož klíče z kroků 1 a 2
+nano /opt/tradebot/.env        # vlož klíče
 systemctl restart tradebot
 ```
-
-Do 1 minuty ti na Telegram přijde „Bot spuštěn (demo)“.
-Doporučení: v Trading 212 omez API klíč na IP adresu serveru.
-
-### 4. Testovací provoz
-Nech bota 2–3 týdny běžet na demu. Pak v `config.yaml` přepni `environment: live`,
-doplň do `.env` ostré klíče a spusť `bash /opt/tradebot/deploy/update.sh`.
 
 ## Užitečné příkazy na serveru
 

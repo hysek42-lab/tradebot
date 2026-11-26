@@ -311,3 +311,25 @@ def test_aggressive_config_loads_and_trades(tmp_path, monkeypatch):
     eng, tg = make_engine(c, broker, FakeData({"UPPY": up}, {"UPPY": entry}))
     eng.cycle()
     assert broker.orders and broker.orders[0][0] == "UPPY_US_EQ"
+
+
+def test_telegram_offset_persists_between_runs(tmp_path, monkeypatch):
+    from tradebot import notify
+    st = State(tmp_path / "s.sqlite")
+
+    class R:
+        def __init__(self, data): self.data = data
+        def json(self): return self.data
+
+    calls = []
+
+    def fake_get(url, params, timeout):
+        calls.append(params["offset"])
+        if params["offset"] <= 5:
+            return R({"result": [{"update_id": 5, "message": {"chat": {"id": 42}, "text": "/stop"}}]})
+        return R({"result": []})
+
+    monkeypatch.setattr(notify.requests, "get", fake_get)
+    assert notify.Telegram("t", "42", st).commands() == ["/stop"]
+    assert notify.Telegram("t", "42", st).commands() == []   # new run, already acknowledged
+    assert calls == [0, 6]
