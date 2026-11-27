@@ -369,8 +369,9 @@ class Engine:
         c = self.cfg["core"]
         now = self._now()
         week = now.strftime("%G-W%V")
-        if now.weekday() != c["run_weekday"] or self.state.get("core_last_week") == week:
-            return
+        last = self.state.get("core_last_week")
+        if last == week or (last is not None and now.weekday() != c["run_weekday"]):
+            return  # first ever run happens on any weekday, then weekly
         if self.minutes_since_open() < 60:
             return
         self.state.set("core_last_week", week)

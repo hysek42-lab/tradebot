@@ -1,7 +1,7 @@
 # AGRESIVNÍ varianta – vědomě vysoké riziko („hazard s pravidly“)
 # Aktivace: v .env nastav BOT_CONFIG=config-aggressive.yaml a restartuj bota.
 #
-# Oproti základní verzi: žádná ETF část, dvojnásobné riziko na obchod,
+# Oproti základní verzi: menší ETF část (20 %), dvojnásobné riziko na obchod,
 # koncentrace do max. 3 pozic, volatilnější tituly, těsnější stopy.
 # Očekávej velké výkyvy oběma směry; série 5–6 ztrátových obchodů za sebou
 # znamená pokles účtu o 25–30 %.
@@ -9,8 +9,8 @@ environment: demo
 dry_run: false
 
 allocation:
-  core_pct: 0.0
-  active_pct: 0.98
+  core_pct: 0.20     # ETF nakupované v propadu a držené
+  active_pct: 0.78
   cash_buffer_pct: 0.02
 
 risk:
@@ -66,7 +66,15 @@ core:
   run_weekday: 0
   dip_threshold_pct: 0.10
   normal_fill_fraction: 0.25
-  etfs: []
+  etfs:
+    - name: Vanguard S&P 500 UCITS (Acc)
+      isin: IE00BFMXXD54
+      yahoo: VUAA.L
+      weight: 0.5
+    - name: iShares Nasdaq 100 UCITS (Acc)
+      isin: IE00B53SZB19
+      yahoo: CNDX.L
+      weight: 0.5
 
 order:
   qty_decimals: 2

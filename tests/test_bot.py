@@ -299,7 +299,8 @@ def test_aggressive_config_loads_and_trades(tmp_path, monkeypatch):
     monkeypatch.setenv("BOT_CONFIG", "config-aggressive.yaml")
     monkeypatch.setenv("BOT_DATA_DIR", str(tmp_path))
     c = load_config()
-    assert c["allocation"]["core_pct"] == 0 and c["risk"]["max_positions"] == 3
+    assert c["allocation"]["core_pct"] == 0.20 and c["risk"]["max_positions"] == 3
+    c["core"]["etfs"] = []
     c["markets"]["us"]["universe"] = ["UPPY"]
     c["markets"]["eu"]["enabled"] = False
     up = make_df(0.006, vol=0.02, seed=3)
