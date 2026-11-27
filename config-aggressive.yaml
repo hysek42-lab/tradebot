@@ -71,8 +71,8 @@ dip:
   enabled: true
   max_positions: 4           # 4 × 7,5 % účtu
   drop_days: 5               # pokles měřený od maxima posledních 5 dní
-  min_drop_pct: 0.08         # koupí po poklesu aspoň o 8 %
-  take_profit_pct: 0.04      # prodá při +4 % od nákupu
+  min_drop_pct: 0.04         # koupí po poklesu aspoň o 4 %
+  take_profit_pct: 0.02      # prodá při +2 % od nákupu
   min_price: 5
   min_dollar_volume: 20000000
   universe:

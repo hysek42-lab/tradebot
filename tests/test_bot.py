@@ -385,7 +385,7 @@ def test_dip_strategy_buys_drop_holds_losses_sells_at_target(cfg):
     agg["dip"]["universe"] = {"us": ["UPPY"]}
     df = make_df(0.002)
     last5_high = float(df["Close"].iloc[-5:].max())
-    px = last5_high * 0.90                                   # -10 % from 5-day high
+    px = last5_high * 0.93                                   # -7 % from 5-day high
     broker = FakeBroker()
     broker.prices["UPPY_US_EQ"] = px
     data = FakeData({"UPPY": df}, {"UPPY": px})
@@ -405,7 +405,7 @@ def test_dip_strategy_buys_drop_holds_losses_sells_at_target(cfg):
     assert eng.state.position("UPPY_US_EQ")
     eng.state.set("manual_stop", False)
     # reaches +4 % above entry -> sells
-    data.prices["UPPY"] = broker.prices["UPPY_US_EQ"] = pos["entry_price"] * 1.05
+    data.prices["UPPY"] = broker.prices["UPPY_US_EQ"] = pos["entry_price"] * 1.03
     eng.cycle()
     assert eng.state.position("UPPY_US_EQ") is None
-    assert any("PRODEJ UPPY" in m and "cíl +4%" in m for m in tg.sent)
+    assert any("PRODEJ UPPY" in m and "cíl +2%" in m for m in tg.sent)
