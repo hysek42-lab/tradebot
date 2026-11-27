@@ -264,6 +264,8 @@ class Engine:
                 return
         pnl = (price - pos["entry_price"]) * qty
         self.state.log_trade(pos["ticker"], "SELL", qty, price, pos["bucket"], reason, pnl)
+        if pos["bucket"] == "dip":  # no immediate re-buy of the same stock
+            self.state.set(f"dip_cooldown_{pos['ticker']}", time.time())
         self.state.remove_position(pos["ticker"])
         self.tg.send(f"PRODEJ {pos['symbol']} {qty} ks @ {price:.2f} ({reason}), "
                      f"výsledek {pnl:+.2f} {self._inst_ccy(pos['ticker'])}")
@@ -414,7 +416,9 @@ class Engine:
             return 0.0
         m = self.markets()[market]
         tickers = {s: self.ticker_for(s, market) for s in universe_all}
-        universe = [s for s, t in tickers.items() if t and self.state.position(t) is None]
+        cooldown = d.get("cooldown_hours", 24) * 3600
+        universe = [s for s, t in tickers.items() if t and self.state.position(t) is None
+                    and time.time() - self.state.get(f"dip_cooldown_{t}", 0) > cooldown]
         daily = self.data.daily(universe)
         prices = {s: p for s, (p, _) in self.data.last_prices(list(daily)).items()}
         candidates = strategies.dip_candidates(daily, prices, d)
