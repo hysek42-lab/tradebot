@@ -48,12 +48,12 @@ strategii (viz níže), 5 % účtu
 v riziku na obchod, max. 3 pozice (každá až polovina účtu), volatilnější akcie
 (TSLA, COIN, MSTR, IONQ, RKLB…), kratší signály a těsnější stopy.
 
-Navíc má pravidlo **prudkého růstu**: akcie, která dnes vyroste o 7 % a víc,
+Navíc má pravidlo **prudkého růstu**: akcie, která dnes vyroste o 5 % a víc,
 se kupuje i bez rostoucího trendu a bez proražení maxima (typicky Nvidia +20 %
 po výsledcích). Stop-loss je pak širší: max. ~40 % dnešního pohybu zpět.
 
 **Poklesová strategie (30 % účtu):** koupí velkou firmu (Apple, Nvidia, SAP,
-ASML…), která během posledních 30 minut spadla aspoň o 2,5 %, a prodá ji při +2 %
+ASML…), která během posledních 30 minut spadla aspoň o 1,5 %, a prodá ji při +2 %
 od nákupu.
 **Záměrně bez stop-lossu:** když dál padá, drží ji, dokud cíle nedosáhne. Peníze
 tak můžou v propadlé akcii zůstat zamrzlé dlouho. Strop: max. 4 pozice po 7,5 %
