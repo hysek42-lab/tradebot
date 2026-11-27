@@ -53,14 +53,14 @@ markets:
     close: "17:30"
     ref: "^GDAXI"
     currency: EUR
-    # přípona tickeru v Trading 212 podle burzy (Xetra, Paříž, Amsterdam, Milán)
-    t212_suffix: {".DE": "d", ".PA": "p", ".AS": "a", ".MI": "m"}
+    # přípona tickeru v Trading 212 podle burzy (Xetra, Paříž, Amsterdam)
+    t212_suffix: {".DE": "d", ".PA": "p", ".AS": "a"}
     overrides:
       min_dollar_volume: 10000000   # v EUR; evropské akcie mají menší objemy
       min_atr_pct: 0.015
     universe: [SAP.DE, SIE.DE, RHM.DE, IFX.DE, ENR.DE, MTX.DE, ZAL.DE, CBK.DE, DBK.DE, AIXA.DE,
                 HAG.DE, MC.PA, AIR.PA, SU.PA, SAF.PA, STMPA.PA, ASML.AS, ADYEN.AS,
-                BESI.AS, ASM.AS, PRX.AS, LDO.MI, UCG.MI, STLAM.MI]
+                BESI.AS, ASM.AS, PRX.AS]
 
 # Dlouhodobá strategie: postupné nákupy ETF, víc při propadu
 core:

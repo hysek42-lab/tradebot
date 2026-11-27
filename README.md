@@ -35,7 +35,7 @@ Všechny parametry jsou v `config.yaml`.
 
 Bot obchoduje na dvou trzích, každý ve svých obchodních hodinách (náš čas):
 - **USA** 15:30–22:00: technologické a volatilní akcie.
-- **Evropa** 9:00–17:30: Xetra, Paříž, Amsterdam, Milán.
+- **Evropa** 9:00–17:30: Xetra, Paříž, Amsterdam.
 
 Evropu vypneš v konfiguraci: `markets → eu → enabled: false`. Limit pozic
 (`max_positions`) platí pro oba trhy dohromady. Při prvním běhu dne bot na

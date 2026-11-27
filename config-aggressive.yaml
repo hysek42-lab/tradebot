@@ -52,14 +52,13 @@ markets:
     close: "17:30"
     ref: "^GDAXI"
     currency: EUR
-    # přípona tickeru v Trading 212 podle burzy (Xetra, Paříž, Amsterdam, Milán)
-    t212_suffix: {".DE": "d", ".PA": "p", ".AS": "a", ".MI": "m"}
+    # přípona tickeru v Trading 212 podle burzy (Xetra, Paříž, Amsterdam)
+    t212_suffix: {".DE": "d", ".PA": "p", ".AS": "a"}
     overrides:
       min_dollar_volume: 5000000   # v EUR; evropské akcie mají menší objemy
       min_atr_pct: 0.02
     universe: [RHM.DE, IFX.DE, ENR.DE, ZAL.DE, DHER.DE, AIXA.DE, HAG.DE, CBK.DE, MTX.DE, R3NK.DE,
-                STMPA.PA, UBI.PA, AIR.PA, ASML.AS, ADYEN.AS, BESI.AS, ASM.AS, LDO.MI, UCG.MI,
-                STLAM.MI]
+                STMPA.PA, UBI.PA, AIR.PA, ASML.AS, ADYEN.AS, BESI.AS, ASM.AS]
 
 core:
   run_weekday: 0
