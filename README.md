@@ -53,7 +53,8 @@ se kupuje i bez rostoucího trendu a bez proražení maxima (typicky Nvidia +20 
 po výsledcích). Stop-loss je pak širší: max. ~40 % dnešního pohybu zpět.
 
 **Poklesová strategie (30 % účtu):** koupí velkou firmu (Apple, Nvidia, SAP,
-ASML…), která za 5 dní spadla aspoň o 4 %, a prodá ji při +2 % od nákupu.
+ASML…), která během posledních 30 minut spadla aspoň o 2,5 %, a prodá ji při +2 %
+od nákupu.
 **Záměrně bez stop-lossu:** když dál padá, drží ji, dokud cíle nedosáhne. Peníze
 tak můžou v propadlé akcii zůstat zamrzlé dlouho. Strop: max. 4 pozice po 7,5 %
 účtu. `/flatten` tyto pozice neprodává.

@@ -46,6 +46,27 @@ class MarketData:
                     log.warning("no daily data for %s", s)
         return {s: self._daily_cache[s] for s in symbols if s in self._daily_cache}
 
+    def intraday(self, symbols: list[str]) -> dict[str, pd.DataFrame]:
+        """Today's 5-minute bars (index in UTC)."""
+        if not symbols:
+            return {}
+        raw = self.yf.download(symbols, period="1d", interval="5m", auto_adjust=True,
+                               group_by="ticker", progress=False, threads=True)
+        out = {}
+        for s in symbols:
+            try:
+                df = raw[s] if len(symbols) > 1 else raw
+                if isinstance(df.columns, pd.MultiIndex):
+                    df = df.droplevel(0, axis=1)
+                df = df.dropna(subset=["Close"])
+                if len(df):
+                    if df.index.tz is None:
+                        df.index = df.index.tz_localize("UTC")
+                    out[s] = df
+            except KeyError:
+                pass
+        return out
+
     def last_prices(self, symbols: list[str]) -> dict[str, tuple[float, datetime]]:
         """Latest 5-minute close and its timestamp (UTC) for each symbol."""
         if not symbols:

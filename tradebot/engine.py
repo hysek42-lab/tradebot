@@ -420,8 +420,13 @@ class Engine:
         universe = [s for s, t in tickers.items() if t and self.state.position(t) is None
                     and time.time() - self.state.get(f"dip_cooldown_{t}", 0) > cooldown]
         daily = self.data.daily(universe)
-        prices = {s: p for s, (p, _) in self.data.last_prices(list(daily)).items()}
-        candidates = strategies.dip_candidates(daily, prices, d)
+        if d.get("window_minutes"):
+            bars = self.data.intraday(list(daily))
+            prices = {s: float(b["Close"].iloc[-1]) for s, b in bars.items()}
+            candidates = strategies.dip_candidates(daily, prices, d, bars)
+        else:
+            prices = {s: p for s, (p, _) in self.data.last_prices(list(daily)).items()}
+            candidates = strategies.dip_candidates(daily, prices, d)
         self.state.set(f"diag_dip_{market}", {"ts": time.time(), "titles": len(universe_all),
                                               "candidates": [c.symbol for c in candidates[:5]]})
         dip_capital = total * self.cfg["allocation"].get("dip_pct", 0)

@@ -61,6 +61,19 @@ class FakeData:
     def fx(self, a, b):
         return 1.0
 
+    def intraday(self, syms):
+        """Fake 5-min bars: flat at `intraday_high` for an hour, last bar at the current price."""
+        out = {}
+        end = pd.Timestamp("2026-11-23 16:00", tz="UTC")
+        for s in syms:
+            if s in self.prices:
+                hi = getattr(self, "intraday_high", {}).get(s, self.prices[s])
+                idx = pd.date_range(end=end, periods=13, freq="5min")
+                closes = [hi] * 12 + [self.prices[s]]
+                out[s] = pd.DataFrame({"High": [max(c, hi) if i < 12 else c for i, c in enumerate(closes)],
+                                       "Close": closes}, index=idx)
+        return out
+
     def currency(self, s):
         return "USD"
 
@@ -384,11 +397,12 @@ def test_dip_strategy_buys_drop_holds_losses_sells_at_target(cfg):
     agg["markets"]["us"]["universe"] = []
     agg["dip"]["universe"] = {"us": ["UPPY"]}
     df = make_df(0.002)
-    last5_high = float(df["Close"].iloc[-5:].max())
-    px = last5_high * 0.93                                   # -7 % from 5-day high
+    hi = float(df["Close"].iloc[-1])
+    px = hi * 0.96                                           # -4 % within the last 30 minutes
     broker = FakeBroker()
     broker.prices["UPPY_US_EQ"] = px
     data = FakeData({"UPPY": df}, {"UPPY": px})
+    data.intraday_high = {"UPPY": hi}
     eng, tg = make_engine(agg, broker, data)
     eng.cycle()
     pos = eng.state.position("UPPY_US_EQ")
@@ -397,6 +411,7 @@ def test_dip_strategy_buys_drop_holds_losses_sells_at_target(cfg):
     assert any("NÁKUP (pokles)" in m for m in tg.sent)
     # falls further: must NOT sell, and must not buy more of the same stock
     data.prices["UPPY"] = broker.prices["UPPY_US_EQ"] = px * 0.6
+    data.intraday_high = {"UPPY": hi * 2}
     eng.cycle()
     assert eng.state.position("UPPY_US_EQ") and len(broker.orders) == 1
     # /flatten closes active trades only, dip positions stay
@@ -409,3 +424,14 @@ def test_dip_strategy_buys_drop_holds_losses_sells_at_target(cfg):
     eng.cycle()
     assert eng.state.position("UPPY_US_EQ") is None
     assert any("PRODEJ UPPY" in m and "cíl +2%" in m for m in tg.sent)
+
+
+
+def test_dip_ignores_small_30min_drop(cfg):
+    agg = yaml.safe_load((ROOT / "config-aggressive.yaml").read_text())
+    df = make_df(0.002)
+    hi = float(df["Close"].iloc[-1])
+    data = FakeData({"X": df}, {"X": hi * 0.99})              # only -1 %
+    data.intraday_high = {"X": hi}
+    bars = data.intraday(["X"])
+    assert strategies.dip_candidates({"X": df}, {"X": hi * 0.99}, agg["dip"], bars) == []

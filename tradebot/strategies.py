@@ -117,19 +117,31 @@ def core_buys(core_capital: float, held_value: dict[str, float],
 
 
 def dip_candidates(daily: dict[str, pd.DataFrame], prices: dict[str, float],
-                   d: dict) -> list[Candidate]:
-    """Stocks that fell hard over the last few sessions (buy the dip, no stop-loss)."""
+                   d: dict, intraday: dict[str, pd.DataFrame] | None = None) -> list[Candidate]:
+    """Stocks that just fell hard (buy the dip, no stop-loss).
+
+    With window_minutes set, the drop is measured from the highest price within
+    the last N minutes of today's 5-minute bars; otherwise over drop_days sessions.
+    """
     out = []
+    window = d.get("window_minutes")
     for sym, df in daily.items():
         price = prices.get(sym)
         if price is None or len(df) < 30:
             continue
         close = df["Close"]
-        recent_high = float(close.iloc[-d["drop_days"]:].max())
+        if window:
+            bars = (intraday or {}).get(sym)
+            if bars is None or not len(bars):
+                continue
+            recent = bars[bars.index >= bars.index[-1] - pd.Timedelta(minutes=window)]
+            recent_high = float(recent["High"].max())
+        else:
+            recent_high = float(close.iloc[-d["drop_days"]:].max())
         drop = price / recent_high - 1
         dollar_vol = float((close * df["Volume"]).iloc[-20:].mean())
         if (drop <= -d["min_drop_pct"]
-                and price < float(sma(close, 10).iloc[-1])
+                and (window or price < float(sma(close, 10).iloc[-1]))
                 and price >= d.get("min_price", 5)
                 and dollar_vol >= d.get("min_dollar_volume", 20_000_000)):
             out.append(Candidate(sym, price, 0.0, 0.0, -drop, "dip"))

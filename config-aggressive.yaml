@@ -70,8 +70,9 @@ markets:
 dip:
   enabled: true
   max_positions: 4           # 4 × 7,5 % účtu
-  drop_days: 5               # pokles měřený od maxima posledních 5 dní
-  min_drop_pct: 0.04         # koupí po poklesu aspoň o 4 %
+  window_minutes: 30         # pokles měřený od nejvyšší ceny za posledních 30 minut
+  min_drop_pct: 0.025        # koupí po poklesu aspoň o 2,5 % během těch 30 minut
+  drop_days: 5               # (používá se jen bez window_minutes)
   take_profit_pct: 0.02      # prodá při +2 % od nákupu
   cooldown_hours: 24         # po prodeji stejnou akcii den nekupuje znovu
   min_price: 5
