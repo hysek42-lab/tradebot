@@ -358,3 +358,18 @@ def test_eu_market_trades_with_t212_suffix_and_reports_missing(cfg):
     eng.market_open = lambda m="us": m == "us"
     eng.cycle()
     assert eng.state.position("RHMd_EQ") is not None
+
+
+def test_spike_entry_catches_big_day_in_downtrend(cfg):
+    down = make_df(-0.003)
+    spike_px = float(down["Close"].iloc[-1]) * 1.15            # +15 % today
+    # default config: no spike rule -> nothing
+    assert strategies.active_candidates({"DOWNY": down}, {"DOWNY": spike_px}, cfg) == []
+    agg = yaml.safe_load((ROOT / "config-aggressive.yaml").read_text())
+    agg["active"]["min_atr_pct"] = 0.01
+    cands = strategies.active_candidates({"DOWNY": down}, {"DOWNY": spike_px}, agg)
+    assert len(cands) == 1 and cands[0].kind == "spike"
+    last = float(down["Close"].iloc[-1])
+    assert cands[0].stop <= spike_px - 0.4 * (spike_px - last) + 1e-9
+    # +3 % day in a downtrend is not a spike
+    assert strategies.active_candidates({"DOWNY": down}, {"DOWNY": last * 1.03}, agg) == []

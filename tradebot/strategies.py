@@ -5,6 +5,8 @@ Active: momentum breakout swing trading.
   while the stock is in an uptrend (last close above a rising SMA), volatile
   enough to move (ATR%) but not absurdly so, liquid, and not penny-priced.
   Candidates are ranked by 3-month momentum.
+  Optional "spike" entry (spike_min_gain_pct): a large gain today qualifies even
+  without an uptrend or breakout, with a wider stop.
   Exit: initial stop at entry - k*ATR, then a trailing stop at the highest
   price since entry minus m*ATR (never lowered), plus a max holding period.
 
@@ -25,6 +27,7 @@ class Candidate:
     atr: float
     stop: float
     score: float
+    kind: str = "breakout"
 
 
 def active_candidates(daily: dict[str, pd.DataFrame], prices: dict[str, float],
@@ -43,20 +46,34 @@ def active_candidates(daily: dict[str, pd.DataFrame], prices: dict[str, float],
         dollar_vol = float((close * df["Volume"]).iloc[-20:].mean())
         atr_pct = a_now / last_close
 
-        conditions = (
-            price > breakout_level,
-            last_close > float(trend.iloc[-1]),
-            float(trend.iloc[-1]) > float(trend.iloc[-6]),        # SMA rising
+        day_gain = price / last_close - 1
+        common = (
             a["min_atr_pct"] <= atr_pct <= a["max_atr_pct"],
             price >= a["min_price"],
             dollar_vol >= a["min_dollar_volume"],
-            price < breakout_level * 1.08,                          # don't chase gaps
         )
-        if not all(conditions):
+        if not all(common):
+            continue
+        breakout = (
+            price > breakout_level
+            and last_close > float(trend.iloc[-1])
+            and float(trend.iloc[-1]) > float(trend.iloc[-6])          # SMA rising
+            and price < breakout_level * (1 + a.get("max_chase_pct", 0.08))  # don't chase gaps
+        )
+        # spike: a big move today counts on its own, even without an uptrend (e.g. NVDA +20 %)
+        spike_min = a.get("spike_min_gain_pct")
+        spike = bool(spike_min) and day_gain >= spike_min
+        if not (breakout or spike):
             continue
         momentum = price / float(close.iloc[-63]) - 1
-        stop = price - a["stop_atr_mult"] * a_now
-        out.append(Candidate(sym, price, a_now, stop, momentum))
+        if spike and not breakout:
+            # wider stop: give back at most ~40 % of today's move, never less than k*ATR
+            stop = price - max(a["stop_atr_mult"] * a_now, 0.4 * (price - last_close))
+            score = 2 * day_gain
+        else:
+            stop = price - a["stop_atr_mult"] * a_now
+            score = momentum
+        out.append(Candidate(sym, price, a_now, stop, score, "spike" if spike and not breakout else "breakout"))
     return sorted(out, key=lambda c: c.score, reverse=True)
 
 

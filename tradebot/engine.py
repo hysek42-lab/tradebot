@@ -289,7 +289,7 @@ class Engine:
             qty = size_active(active_capital, available, c.price, c.stop, fx, self.cfg)
             if qty <= 0:
                 continue
-            if self._buy(ticker, c.symbol, qty, c.price, c.atr, c.stop, "active", "breakout"):
+            if self._buy(ticker, c.symbol, qty, c.price, c.atr, c.stop, "active", c.kind):
                 exposure += qty * c.price * fx
                 spent += qty * c.price * fx
         return spent
@@ -339,7 +339,8 @@ class Engine:
         if bucket == "active":
             stop = fill_px - (price - stop)  # keep the ATR distance relative to actual fill
             self._open_state(ticker, symbol, filled, fill_px, atr_v, stop)
-            self.tg.send(f"NÁKUP {symbol} {filled} ks @ {fill_px:.2f}, stop-loss {stop:.2f}")
+            why = "prudký růst dnes" if reason == "spike" else "proražení maxima"
+            self.tg.send(f"NÁKUP {symbol} {filled} ks @ {fill_px:.2f} ({why}), stop-loss {stop:.2f}")
         else:
             self.tg.send(f"NÁKUP (dlouhodobě) {symbol} {filled} ks @ {fill_px:.2f}")
         return True

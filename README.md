@@ -47,6 +47,10 @@ Vědomě hazardní režim: celý účet v aktivních obchodech, žádná ETF č�
 v riziku na obchod, max. 3 pozice (každá až polovina účtu), volatilnější akcie
 (TSLA, COIN, MSTR, IONQ, RKLB…), kratší signály a těsnější stopy.
 
+Navíc má pravidlo **prudkého růstu**: akcie, která dnes vyroste o 7 % a víc,
+se kupuje i bez rostoucího trendu a bez proražení maxima (typicky Nvidia +20 %
+po výsledcích). Stop-loss je pak širší: max. ~40 % dnešního pohybu zpět.
+
 Zapnutí: v `.env` nastav `BOT_CONFIG=config-aggressive.yaml` a `systemctl restart tradebot`.
 
 Počítej s tím, že série ztrát může účet srazit o třetinu za pár týdnů. Poslední brzda
