@@ -87,7 +87,12 @@ class T212Client:
             if r.status_code == 408 and is_order:
                 raise OrderUncertain(f"{method} {path}: broker timed out")
             if r.status_code >= 400:
-                raise T212Error(r.status_code, r.text[:300])
+                hint = {401: "špatný klíč nebo secret",
+                        403: "klíč nemá potřebné oprávnění, je pro jiný účet (demo/live) nebo je omezen na IP"
+                        }.get(r.status_code, "")
+                raise T212Error(r.status_code,
+                                f"{method} {path} ({self.base.split('//')[1].split('.')[0]}) "
+                                f"{hint} {r.text[:200]}".strip())
             return r.json() if r.content else None
         raise T212Error(429, f"gave up on {method} {path} after retries")
 
