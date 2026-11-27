@@ -35,9 +35,31 @@ active:
   max_atr_pct: 0.20
   min_price: 3
   min_dollar_volume: 15000000
-  universe: [TSLA, NVDA, AMD, PLTR, COIN, MSTR, HOOD, SOFI, RBLX, SHOP,
-             ARM, SMCI, IONQ, RGTI, RKLB, ASTS, HIMS, UPST, AFRM, CVNA,
-             APP, SOUN, MARA, RIOT, CRWD, NET, SNOW, U, AI, PATH]
+
+markets:
+  us:
+    enabled: true
+    tz: America/New_York
+    open: "09:30"
+    close: "16:00"
+    ref: SPY
+    currency: USD
+    universe: [TSLA, NVDA, AMD, PLTR, COIN, MSTR, HOOD, SOFI, RBLX, SHOP, ARM, SMCI, IONQ, RGTI, RKLB, ASTS, HIMS, UPST, AFRM, CVNA, APP, SOUN, MARA, RIOT, CRWD, NET, SNOW, U, AI, PATH]
+  eu:
+    enabled: true            # vypni (false), až budeš chtít jen USA
+    tz: Europe/Berlin
+    open: "09:00"
+    close: "17:30"
+    ref: "^GDAXI"
+    currency: EUR
+    # přípona tickeru v Trading 212 podle burzy (Xetra, Paříž, Amsterdam, Milán)
+    t212_suffix: {".DE": "d", ".PA": "p", ".AS": "a", ".MI": "m"}
+    overrides:
+      min_dollar_volume: 5000000   # v EUR; evropské akcie mají menší objemy
+      min_atr_pct: 0.02
+    universe: [RHM.DE, IFX.DE, ENR.DE, ZAL.DE, DHER.DE, AIXA.DE, HAG.DE, CBK.DE, MTX.DE, R3NK.DE,
+                STMPA.PA, UBI.PA, AIR.PA, ASML.AS, ADYEN.AS, BESI.AS, ASM.AS, LDO.MI, UCG.MI,
+                STLAM.MI]
 
 core:
   run_weekday: 0

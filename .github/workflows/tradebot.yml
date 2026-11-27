@@ -2,9 +2,9 @@ name: tradebot
 
 on:
   schedule:
-    # každých 5 minut v pracovní dny 13:00–21:59 UTC
-    # (pokrývá obchodní hodiny v USA v létě i v zimě + denní report)
-    - cron: "*/5 13-21 * * 1-5"
+    # každých 5 minut v pracovní dny 07:00–21:59 UTC
+    # (Evropa 9:00–17:30 + USA 15:30–22:00 našeho času, léto i zima, + denní report)
+    - cron: "*/5 7-21 * * 1-5"
   workflow_dispatch: {}
 
 # nikdy dva běhy najednou (ochrana proti dvojím příkazům)

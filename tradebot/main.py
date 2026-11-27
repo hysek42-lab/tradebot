@@ -52,7 +52,7 @@ def main() -> None:
             now = time.time()
             if now >= next_cycle:
                 engine.cycle()
-                open_ = engine.market_open()
+                open_ = any(engine.market_open(m) for m in engine.markets())
                 next_cycle = now + (300 if open_ else 900)
             else:
                 engine.handle_commands()

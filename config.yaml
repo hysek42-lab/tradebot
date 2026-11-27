@@ -36,9 +36,31 @@ active:
   max_atr_pct: 0.12          # ...ale ne úplná kasina
   min_price: 5
   min_dollar_volume: 20000000
-  universe: [NVDA, AMD, TSLA, META, AMZN, GOOGL, MSFT, AAPL, AVGO, PLTR,
-             COIN, MSTR, SHOP, NFLX, CRWD, SNOW, UBER, ABNB, MU, ARM,
-             HOOD, SOFI, RBLX, NET, DDOG, PANW, ANET, MRVL, TSM, ASML]
+
+markets:
+  us:
+    enabled: true
+    tz: America/New_York
+    open: "09:30"
+    close: "16:00"
+    ref: SPY
+    currency: USD
+    universe: [NVDA, AMD, TSLA, META, AMZN, GOOGL, MSFT, AAPL, AVGO, PLTR, COIN, MSTR, SHOP, NFLX, CRWD, SNOW, UBER, ABNB, MU, ARM, HOOD, SOFI, RBLX, NET, DDOG, PANW, ANET, MRVL, TSM, ASML]
+  eu:
+    enabled: true            # vypni (false), až budeš chtít jen USA
+    tz: Europe/Berlin
+    open: "09:00"
+    close: "17:30"
+    ref: "^GDAXI"
+    currency: EUR
+    # přípona tickeru v Trading 212 podle burzy (Xetra, Paříž, Amsterdam, Milán)
+    t212_suffix: {".DE": "d", ".PA": "p", ".AS": "a", ".MI": "m"}
+    overrides:
+      min_dollar_volume: 10000000   # v EUR; evropské akcie mají menší objemy
+      min_atr_pct: 0.015
+    universe: [SAP.DE, SIE.DE, RHM.DE, IFX.DE, ENR.DE, MTX.DE, ZAL.DE, CBK.DE, DBK.DE, AIXA.DE,
+                HAG.DE, MC.PA, AIR.PA, SU.PA, SAF.PA, STMPA.PA, ASML.AS, ADYEN.AS,
+                BESI.AS, ASM.AS, PRX.AS, LDO.MI, UCG.MI, STLAM.MI]
 
 # Dlouhodobá strategie: postupné nákupy ETF, víc při propadu
 core:

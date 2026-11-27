@@ -31,6 +31,16 @@ k cílové váze. V propadu (10 % a víc pod ročním maximem) dokoupí celý ro
 
 Všechny parametry jsou v `config.yaml`.
 
+## Trhy
+
+Bot obchoduje na dvou trzích, každý ve svých obchodních hodinách (náš čas):
+- **USA** 15:30–22:00: technologické a volatilní akcie.
+- **Evropa** 9:00–17:30: Xetra, Paříž, Amsterdam, Milán.
+
+Evropu vypneš v konfiguraci: `markets → eu → enabled: false`. Limit pozic
+(`max_positions`) platí pro oba trhy dohromady. Při prvním běhu dne bot na
+Telegram pošle, které tituly ze seznamu v Trading 212 nenašel.
+
 ## Agresivní varianta (`config-aggressive.yaml`)
 
 Vědomě hazardní režim: celý účet v aktivních obchodech, žádná ETF část, 5 % účtu

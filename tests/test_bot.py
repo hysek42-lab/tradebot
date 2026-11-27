@@ -21,7 +21,8 @@ ROOT = Path(__file__).resolve().parent.parent
 def cfg(tmp_path):
     c = yaml.safe_load((ROOT / "config.yaml").read_text())
     c["data_dir"] = tmp_path
-    c["active"]["universe"] = ["UPPY", "DOWNY"]
+    c["markets"]["us"]["universe"] = ["UPPY", "DOWNY"]
+    c["markets"]["eu"]["enabled"] = False
     return c
 
 
@@ -126,7 +127,7 @@ def make_engine(cfg, broker, data, when=datetime(2026, 11, 23, 11, 0, tzinfo=NY)
     tg = FakeTG()
     eng = Engine(cfg, broker, data, State(cfg["data_dir"] / "t.sqlite"), tg,
                  clock=lambda: when, sleep=lambda s: None)
-    eng.market_open = lambda: True
+    eng.market_open = lambda m="us": True
     return eng, tg
 
 
@@ -203,7 +204,6 @@ def test_entry_places_broker_stop_then_exit_cancels_it(cfg):
     assert any("NÁKUP UPPY" in m for m in tg.sent)
 
     # second cycle at the same price must not buy again
-    eng._last_scan = None
     eng.cycle()
     assert len(broker.orders) == 1
 
@@ -226,7 +226,6 @@ def test_uncertain_order_is_not_retried_then_adopted(cfg):
     eng.cycle()
     assert broker.orders == []
     assert any("nejisté" in m for m in tg.sent)
-    eng._last_scan = None
     eng.cycle()                               # intent blocks a duplicate buy
     assert broker.orders == []
     # the order actually went through at the broker after all
@@ -266,13 +265,12 @@ def test_stop_command_and_flatten(cfg):
     tg.queue = ["/flatten"]
     eng.cycle()
     assert "UPPY_US_EQ" not in broker.pos and eng.state.get("manual_stop")
-    eng._last_scan = None
     eng.cycle()
     assert len([o for o in broker.orders if o[1] > 0]) == 1   # no new buys while stopped
 
 
 def test_core_runs_once_per_week_on_monday(cfg):
-    cfg["active"]["universe"] = []
+    cfg["markets"]["us"]["universe"] = []
     broker = FakeBroker()
     etf = make_df(0.0005, start=100)
     px = float(etf["High"].iloc[-252:].max()) * 0.85         # in a 15% dip
@@ -302,7 +300,8 @@ def test_aggressive_config_loads_and_trades(tmp_path, monkeypatch):
     monkeypatch.setenv("BOT_DATA_DIR", str(tmp_path))
     c = load_config()
     assert c["allocation"]["core_pct"] == 0 and c["risk"]["max_positions"] == 3
-    c["active"]["universe"] = ["UPPY"]
+    c["markets"]["us"]["universe"] = ["UPPY"]
+    c["markets"]["eu"]["enabled"] = False
     up = make_df(0.006, vol=0.02, seed=3)
     up["High"], up["Low"] = up["Close"] * 1.025, up["Close"] * 0.975
     entry = float(up["High"].iloc[-10:].max()) * 1.01
@@ -333,3 +332,29 @@ def test_telegram_offset_persists_between_runs(tmp_path, monkeypatch):
     assert notify.Telegram("t", "42", st).commands() == ["/stop"]
     assert notify.Telegram("t", "42", st).commands() == []   # new run, already acknowledged
     assert calls == [0, 6]
+
+
+def test_eu_market_trades_with_t212_suffix_and_reports_missing(cfg):
+    cfg["markets"]["eu"]["enabled"] = True
+    cfg["markets"]["eu"]["universe"] = ["RHM.DE", "NOPE.PA"]
+    cfg["core"]["run_weekday"] = 4
+    up = make_df(0.004)
+    entry = float(up["High"].iloc[-20:].max()) * 1.01
+    broker = FakeBroker()
+    broker.inst.append({"ticker": "RHMd_EQ", "type": "STOCK", "currencyCode": "EUR",
+                        "isin": "DE0007030033", "shortName": "RHM"})
+    broker.prices["RHMd_EQ"] = entry
+    data = FakeData({"RHM.DE": up, "UPPY": make_df(-0.003)}, {"RHM.DE": entry, "UPPY": 50.0})
+    berlin_morning = datetime(2026, 11, 27, 11, 0, tzinfo=ZoneInfo("Europe/Berlin"))
+    eng, tg = make_engine(cfg, broker, data, when=berlin_morning)
+    eng.market_open = lambda m="us": m == "eu"
+    eng.cycle()
+    assert broker.orders and broker.orders[0][0] == "RHMd_EQ"
+    assert any("Trh EU" in m and "NOPE.PA" in m for m in tg.sent)
+    pos = eng.state.position("RHMd_EQ")
+    assert pos["symbol"] == "RHM.DE"
+    # EU closed, US open: EU position is not touched by the exit logic
+    data.prices["RHM.DE"] = pos["stop"] * 0.5
+    eng.market_open = lambda m="us": m == "us"
+    eng.cycle()
+    assert eng.state.position("RHMd_EQ") is not None

@@ -24,7 +24,6 @@ class Engine:
         self.clock = clock or (lambda: datetime.now(tz=NY))
         self.sleep = sleep
         self._instruments: dict | None = None
-        self._last_scan: datetime | None = None
         self.account_ccy = "EUR"
 
     # ------------------------------------------------------------------ utils
@@ -47,9 +46,39 @@ class Engine:
         self._instruments = {i["ticker"]: i for i in items}
         return self._instruments
 
+    # ---------------------------------------------------------------- markets
+    def markets(self) -> dict:
+        m = self.cfg.get("markets") or {
+            "us": {"tz": "America/New_York", "open": "09:30", "close": "16:00",
+                   "ref": "SPY", "currency": "USD",
+                   "universe": self.cfg["active"].get("universe", [])}}
+        return {k: v for k, v in m.items() if v.get("enabled", True)}
+
+    def market_of(self, symbol: str) -> str:
+        for name, m in (self.cfg.get("markets") or {}).items():
+            if symbol in m.get("universe", []):
+                return name
+        return "eu" if "." in symbol else "us"
+
+    def ticker_for(self, symbol: str, market: str) -> str | None:
+        inst = self.instruments()
+        if market == "us":
+            t = f"{symbol.replace('-', '.')}_US_EQ"
+            return t if t in inst else None
+        m = self.markets().get(market) or (self.cfg.get("markets") or {}).get(market, {})
+        base, _, suffix = symbol.partition(".")
+        hint = (m.get("t212_suffix") or {}).get("." + suffix, "")
+        t = f"{base}{hint}_EQ"
+        if t in inst:
+            return t
+        for i in inst.values():  # fallback: same short name and currency
+            if (i.get("type") == "STOCK" and i.get("shortName") == base
+                    and i.get("currencyCode") == m.get("currency")):
+                return i["ticker"]
+        return None
+
     def us_ticker(self, symbol: str) -> str | None:
-        t = f"{symbol.replace('-', '.')}_US_EQ"
-        return t if t in self.instruments() else None
+        return self.ticker_for(symbol, "us")
 
     def etf_ticker(self, isin: str) -> str | None:
         matches = [i for i in self.instruments().values()
@@ -59,21 +88,26 @@ class Engine:
         matches.sort(key=lambda i: i.get("currencyCode") != self.account_ccy)
         return matches[0]["ticker"]
 
-    def market_open(self) -> bool:
-        now = self._now()
-        if now.weekday() >= 5:
-            return False
-        open_t = now.replace(hour=9, minute=30, second=0, microsecond=0)
-        close_t = now.replace(hour=16, minute=0, second=0, microsecond=0)
-        if not open_t <= now < close_t:
-            return False
-        # holiday check: fresh SPY bar means the market is actually trading
-        spy = self.data.last_prices(["SPY"]).get("SPY")
-        return bool(spy and now - spy[1].astimezone(NY) < timedelta(minutes=30))
+    def _session(self, market: str):
+        m = self.markets()[market]
+        tz = ZoneInfo(m["tz"])
+        now = self.clock().astimezone(tz)
+        oh, om = map(int, m["open"].split(":"))
+        ch, cm = map(int, m["close"].split(":"))
+        return (now, now.replace(hour=oh, minute=om, second=0, microsecond=0),
+                now.replace(hour=ch, minute=cm, second=0, microsecond=0), m)
 
-    def minutes_since_open(self) -> float:
-        now = self._now()
-        return (now - now.replace(hour=9, minute=30, second=0, microsecond=0)).total_seconds() / 60
+    def market_open(self, market: str = "us") -> bool:
+        now, open_t, close_t, m = self._session(market)
+        if now.weekday() >= 5 or not open_t <= now < close_t:
+            return False
+        # holiday check: a fresh bar of the reference symbol means it is really trading
+        ref = self.data.last_prices([m["ref"]]).get(m["ref"])
+        return bool(ref and now - ref[1].astimezone(now.tzinfo) < timedelta(minutes=30))
+
+    def minutes_since_open(self, market: str = "us") -> float:
+        now, open_t, _, _ = self._session(market)
+        return (now - open_t).total_seconds() / 60
 
     # --------------------------------------------------------------- commands
     def handle_commands(self, total: float | None = None) -> None:
@@ -116,26 +150,30 @@ class Engine:
         self.reconcile(broker)
         self.maybe_report(total)
 
-        if not self.market_open():
+        open_markets = [m for m in self.markets() if self.market_open(m)]
+        if not open_markets:
             return
 
         if self.state.get("flatten_requested"):
+            remaining = 0
             for pos in self.state.positions("active"):
-                self.exit_position(pos, broker, "ruční /flatten")
-            self.state.set("flatten_requested", False)
+                if self.market_of(pos["symbol"]) in open_markets:
+                    self.exit_position(pos, broker, "ruční /flatten")
+                else:
+                    remaining += 1
+            self.state.set("flatten_requested", remaining > 0)
             return
 
-        self.manage_exits(broker)
+        self.manage_exits(broker, open_markets)
 
         if not guard.allow_entries:
             return
-        a = self.cfg["active"]
-        scan_due = (self._last_scan is None or
-                    self._now() - self._last_scan >= timedelta(minutes=a["scan_every_minutes"] - 1))
-        if scan_due and self.minutes_since_open() >= a["skip_first_minutes_after_open"]:
-            self._last_scan = self._now()
-            self.scan_entries(total, cash, broker)
-        self.maybe_core(total, cash, broker)
+        skip = self.cfg["active"]["skip_first_minutes_after_open"]
+        for m in open_markets:
+            if self.minutes_since_open(m) >= skip:
+                cash -= self.scan_entries(total, cash, broker, m)
+        if "us" in open_markets:
+            self.maybe_core(total, cash, broker)
 
     # -------------------------------------------------------------- reconcile
     def reconcile(self, broker: dict) -> None:
@@ -157,7 +195,8 @@ class Engine:
             intent = self.state.get_intent(ticker)
             if (self.state.position(ticker) is None and intent and intent.startswith("active:")
                     and self.state.has_recent_intent(ticker, 86400)):
-                symbol = ticker.split("_")[0]
+                parts = intent.split(":")
+                symbol = parts[1] if len(parts) > 2 else ticker.split("_")[0]
                 daily = self.data.daily([symbol]).get(symbol)
                 if daily is None:
                     continue
@@ -169,8 +208,9 @@ class Engine:
                 self.tg.send(f"{symbol}: dohledán nepotvrzený nákup, pozice převzata.")
 
     # ------------------------------------------------------------------ exits
-    def manage_exits(self, broker: dict) -> None:
-        active = self.state.positions("active")
+    def manage_exits(self, broker: dict, open_markets=("us",)) -> None:
+        active = [p for p in self.state.positions("active")
+                  if self.market_of(p["symbol"]) in open_markets]
         if not active:
             return
         prices = self.data.last_prices([p["symbol"] for p in active])
@@ -211,36 +251,54 @@ class Engine:
                      f"výsledek {pnl:+.2f} {self._inst_ccy(pos['ticker'])}")
 
     # ----------------------------------------------------------------- entries
-    def scan_entries(self, total: float, cash: float, broker: dict) -> None:
-        a, r = self.cfg["active"], self.cfg["risk"]
+    def scan_entries(self, total: float, cash: float, broker: dict, market: str = "us") -> float:
+        """Look for entries on one market. Returns cash spent (account currency)."""
+        r = self.cfg["risk"]
+        m = self.markets()[market]
         held = self.state.positions("active")
         if len(held) >= r["max_positions"]:
-            return
-        universe = [s for s in a["universe"]
-                    if self.us_ticker(s) and self.state.position(self.us_ticker(s)) is None]
+            return 0.0
+        acfg = {**self.cfg, "active": {**self.cfg["active"], **(m.get("overrides") or {})}}
+
+        tickers = {s: self.ticker_for(s, market) for s in m.get("universe", [])}
+        self._report_unmatched(market, tickers)
+        universe = [s for s, t in tickers.items() if t and self.state.position(t) is None]
         daily = self.data.daily(universe)
         prices = {s: p for s, (p, _) in self.data.last_prices(list(daily)).items()}
-        candidates = strategies.active_candidates(daily, prices, self.cfg)
+        candidates = strategies.active_candidates(daily, prices, acfg)
         if not candidates:
-            return
+            return 0.0
 
         active_capital = total * self.cfg["allocation"]["active_pct"]
         exposure = sum(float(broker[p["ticker"]]["walletImpact"]["currentValue"])
                        for p in held if p["ticker"] in broker)
         spendable = cash - total * self.cfg["allocation"]["cash_buffer_pct"]
-        fx = self.data.fx("USD", self.account_ccy)
+        fx = self.data.fx(m["currency"], self.account_ccy)
+        spent = 0.0
 
         for c in candidates[: r["max_positions"] - len(held)]:
-            ticker = self.us_ticker(c.symbol)
+            ticker = tickers[c.symbol]
             if self.state.has_recent_intent(ticker):
                 continue
-            available = min(active_capital - exposure, spendable)
+            available = min(active_capital - exposure, spendable - spent)
             qty = size_active(active_capital, available, c.price, c.stop, fx, self.cfg)
             if qty <= 0:
                 continue
             if self._buy(ticker, c.symbol, qty, c.price, c.atr, c.stop, "active", "breakout"):
                 exposure += qty * c.price * fx
-                spendable -= qty * c.price * fx
+                spent += qty * c.price * fx
+        return spent
+
+    def _report_unmatched(self, market: str, tickers: dict) -> None:
+        key = f"universe_check_{market}"
+        today = self.clock().date().isoformat()
+        if self.state.get(key) == today:
+            return
+        self.state.set(key, today)
+        missing = [s for s, t in tickers.items() if not t]
+        if missing:
+            self.tg.send(f"Trh {market.upper()}: {len(tickers) - len(missing)}/{len(tickers)} titulů "
+                         f"nalezeno v Trading 212. Chybí: {', '.join(missing)}")
 
     def _buy(self, ticker, symbol, qty, price, atr_v, stop, bucket, reason) -> bool:
         if self._dry():
@@ -248,7 +306,7 @@ class Engine:
             return True
         before = {p["instrument"]["ticker"]: p for p in self.client.positions()}
         prev_qty = float(before[ticker]["quantity"]) if ticker in before else 0.0
-        self.state.add_intent(ticker, f"{bucket}:BUY {qty} {reason}")
+        self.state.add_intent(ticker, f"{bucket}:{symbol}:BUY {qty} {reason}")
         try:
             self.client.market_order(ticker, qty)
         except OrderUncertain as e:
