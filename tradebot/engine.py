@@ -221,9 +221,11 @@ class Engine:
                 from .indicators import atr as atr_fn
                 a_now = float(atr_fn(daily, self.cfg["active"]["atr_days"]).iloc[-1])
                 entry = float(bp["averagePricePaid"])
-                self._open_state(ticker, symbol, float(bp["quantity"]), entry, a_now,
-                                 entry - self.cfg["active"]["stop_atr_mult"] * a_now)
-                self.tg.send(f"{symbol}: dohledán nepotvrzený nákup, pozice převzata.")
+                stop = entry - self.cfg["active"]["stop_atr_mult"] * a_now
+                self._open_state(ticker, symbol, float(bp["quantity"]), entry, a_now, stop)
+                self.state.log_trade(ticker, "BUY", float(bp["quantity"]), entry, "active", "dohledáno")
+                self.tg.send(f"NÁKUP {symbol} {float(bp['quantity'])} ks @ {entry:.2f} "
+                             f"(dohledaný), stop-loss {stop:.2f}")
 
     # ------------------------------------------------------------------ exits
     def manage_exits(self, broker: dict, open_markets=("us",)) -> None:
@@ -341,7 +343,7 @@ class Engine:
             self.tg.send(f"{symbol}: nákup odmítnut ({e}).")
             return False
 
-        for _ in range(6):  # wait for the fill
+        for _ in range(15):  # wait up to ~45 s for the fill
             self.sleep(3)
             now = {p["instrument"]["ticker"]: p for p in self.client.positions()}
             if ticker in now and float(now[ticker]["quantity"]) > prev_qty + 1e-9:
