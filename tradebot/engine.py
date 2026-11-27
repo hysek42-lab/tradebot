@@ -166,6 +166,7 @@ class Engine:
             return
 
         self.manage_exits(broker, open_markets)
+        self.manage_dip_exits(broker, open_markets)
 
         if not guard.allow_entries:
             return
@@ -173,11 +174,21 @@ class Engine:
         for m in open_markets:
             if self.minutes_since_open(m) >= skip:
                 cash -= self.scan_entries(total, cash, broker, m)
+                cash -= self.scan_dips(total, cash, broker, m)
         if "us" in open_markets:
             self.maybe_core(total, cash, broker)
 
     # -------------------------------------------------------------- reconcile
     def reconcile(self, broker: dict) -> None:
+        for pos in self.state.positions("dip"):
+            bp = broker.get(pos["ticker"])
+            if bp is None or bp["quantity"] <= 0:
+                self.state.remove_position(pos["ticker"])
+                self.tg.send(f"{pos['symbol']}: pozice z poklesové strategie zmizela z účtu "
+                             f"(prodaná ručně?). Přestávám ji sledovat.")
+            elif abs(bp["quantity"] - pos["quantity"]) > 1e-9:
+                pos["quantity"] = bp["quantity"]
+                self.state.upsert_position(pos)
         for pos in self.state.positions("active"):
             bp = broker.get(pos["ticker"])
             if bp is None or bp["quantity"] <= 0:
@@ -194,6 +205,12 @@ class Engine:
         # adopt fills from orders whose confirmation got lost (intent recorded, no state yet)
         for ticker, bp in broker.items():
             intent = self.state.get_intent(ticker)
+            if (self.state.position(ticker) is None and intent and intent.startswith("dip:")
+                    and self.state.has_recent_intent(ticker, 86400)):
+                self._open_dip_state(ticker, intent.split(":")[1], float(bp["quantity"]),
+                                     float(bp["averagePricePaid"]))
+                self.tg.send(f"{intent.split(':')[1]}: dohledán nepotvrzený nákup, pozice převzata.")
+                continue
             if (self.state.position(ticker) is None and intent and intent.startswith("active:")
                     and self.state.has_recent_intent(ticker, 86400)):
                 parts = intent.split(":")
@@ -241,12 +258,12 @@ class Engine:
                 self.tg.send(f"{pos['symbol']}: nejisté odeslání prodeje, ověřím příště. {e}")
                 return
             except T212Error as e:
-                self.tg.send(f"{pos['symbol']}: prodej odmítnut ({e}). Stop u brokera zůstává.")
+                self.tg.send(f"{pos['symbol']}: prodej odmítnut ({e}).")
                 if pos.get("broker_stop_id"):
                     self._place_stop(pos)
                 return
         pnl = (price - pos["entry_price"]) * qty
-        self.state.log_trade(pos["ticker"], "SELL", qty, price, "active", reason, pnl)
+        self.state.log_trade(pos["ticker"], "SELL", qty, price, pos["bucket"], reason, pnl)
         self.state.remove_position(pos["ticker"])
         self.tg.send(f"PRODEJ {pos['symbol']} {qty} ks @ {price:.2f} ({reason}), "
                      f"výsledek {pnl:+.2f} {self._inst_ccy(pos['ticker'])}")
@@ -336,7 +353,12 @@ class Engine:
 
         self.state.log_trade(ticker, "BUY", filled, fill_px, bucket, reason)
         self.state.clear_intent(ticker)
-        if bucket == "active":
+        if bucket == "dip":
+            self._open_dip_state(ticker, symbol, filled, fill_px)
+            tp = self.cfg["dip"]["take_profit_pct"]
+            self.tg.send(f"NÁKUP (pokles) {symbol} {filled} ks @ {fill_px:.2f}, "
+                         f"prodej při {fill_px * (1 + tp):.2f} (+{tp:.0%}), bez stop-lossu")
+        elif bucket == "active":
             stop = fill_px - (price - stop)  # keep the ATR distance relative to actual fill
             self._open_state(ticker, symbol, filled, fill_px, atr_v, stop)
             why = "prudký růst dnes" if reason == "spike" else "proražení maxima"
@@ -363,6 +385,60 @@ class Engine:
             pos["broker_stop_id"] = None
             self.tg.send(f"{pos['symbol']}: stop u brokera se nepodařilo zadat ({e}). "
                          f"Hlídám stop softwarově.")
+
+    # ------------------------------------------------------------- dip buying
+    def _open_dip_state(self, ticker, symbol, qty, entry) -> None:
+        self.state.upsert_position({
+            "ticker": ticker, "symbol": symbol, "bucket": "dip", "quantity": qty,
+            "entry_price": entry, "stop": None, "highest": entry, "atr": 0.0,
+            "broker_stop_id": None, "opened_at": time.time()})
+        self.state.clear_intent(ticker)
+
+    def manage_dip_exits(self, broker: dict, open_markets) -> None:
+        d = self.cfg.get("dip") or {}
+        held = [p for p in self.state.positions("dip") if self.market_of(p["symbol"]) in open_markets]
+        if not d.get("enabled") or not held:
+            return
+        prices = self.data.last_prices([p["symbol"] for p in held])
+        for pos in held:
+            px = prices.get(pos["symbol"])
+            reason = strategies.dip_exit(pos, px[0], d) if px else None
+            if reason:
+                self.exit_position(pos, broker, reason, px[0])
+
+    def scan_dips(self, total: float, cash: float, broker: dict, market: str) -> float:
+        d = self.cfg.get("dip") or {}
+        universe_all = (d.get("universe") or {}).get(market, [])
+        held = self.state.positions("dip")
+        if not d.get("enabled") or not universe_all or len(held) >= d["max_positions"]:
+            return 0.0
+        m = self.markets()[market]
+        tickers = {s: self.ticker_for(s, market) for s in universe_all}
+        universe = [s for s, t in tickers.items() if t and self.state.position(t) is None]
+        daily = self.data.daily(universe)
+        prices = {s: p for s, (p, _) in self.data.last_prices(list(daily)).items()}
+        candidates = strategies.dip_candidates(daily, prices, d)
+        self.state.set(f"diag_dip_{market}", {"ts": time.time(), "titles": len(universe_all),
+                                              "candidates": [c.symbol for c in candidates[:5]]})
+        dip_capital = total * self.cfg["allocation"].get("dip_pct", 0)
+        exposure = sum(float(broker[p["ticker"]]["walletImpact"]["currentValue"])
+                       for p in held if p["ticker"] in broker)
+        per_position = dip_capital / d["max_positions"]
+        spendable = cash - total * self.cfg["allocation"]["cash_buffer_pct"]
+        fx = self.data.fx(m["currency"], self.account_ccy)
+        spent = 0.0
+        for c in candidates[: d["max_positions"] - len(held)]:
+            ticker = tickers[c.symbol]
+            if self.state.has_recent_intent(ticker):
+                continue
+            value = min(per_position, dip_capital - exposure, spendable - spent)
+            qty = round_down(value / (c.price * fx), self.cfg["order"]["qty_decimals"])
+            if qty <= 0 or qty * c.price * fx < self.cfg["risk"]["min_order_value"]:
+                continue
+            if self._buy(ticker, c.symbol, qty, c.price, 0, 0, "dip", "dip"):
+                exposure += qty * c.price * fx
+                spent += qty * c.price * fx
+        return spent
 
     # -------------------------------------------------------------------- core
     def maybe_core(self, total: float, cash: float, broker: dict) -> None:
@@ -423,6 +499,14 @@ class Engine:
                 lines.append(f"Sken {name.upper()} před {(time.time() - d['ts']) / 60:.0f} min: "
                              f"{d['matched']}/{d['titles']} titulů, data {d['daily']}, ceny {d['prices']}, "
                              f"signály: {', '.join(d['candidates']) or 'žádné'}")
+        for name in self.markets():
+            d = self.state.get(f"diag_dip_{name}")
+            if d:
+                lines.append(f"Poklesy {name.upper()}: kandidáti {', '.join(d['candidates']) or 'žádní'}")
+        tp = (self.cfg.get("dip") or {}).get("take_profit_pct", 0)
+        for p in self.state.positions("dip"):
+            lines.append(f"- [pokles] {p['symbol']}: {p['quantity']} ks, nákup {p['entry_price']:.2f}, "
+                         f"prodej při {p['entry_price'] * (1 + tp):.2f}")
         for p in self.state.positions("active"):
             lines.append(f"- {p['symbol']}: {p['quantity']} ks, vstup {p['entry_price']:.2f}, "
                          f"stop {p['stop']:.2f}")

@@ -33,6 +33,6 @@ def load_config(path: Path | None = None) -> dict:
     cfg["data_dir"] = Path(os.environ.get("BOT_DATA_DIR", ROOT / "data"))
     cfg["data_dir"].mkdir(parents=True, exist_ok=True)
     a = cfg["allocation"]
-    if a["core_pct"] + a["active_pct"] > 1.0001:
-        raise ValueError("core_pct + active_pct must be <= 1")
+    if a["core_pct"] + a["active_pct"] + a.get("dip_pct", 0) > 1.0001:
+        raise ValueError("core_pct + active_pct + dip_pct must be <= 1")
     return cfg

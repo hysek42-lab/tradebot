@@ -43,14 +43,20 @@ Telegram pošle, které tituly ze seznamu v Trading 212 nenašel.
 
 ## Agresivní varianta (`config-aggressive.yaml`)
 
-Vědomě hazardní režim: 78 % účtu v aktivních obchodech, 20 % v ETF (S&P 500
-a Nasdaq 100) nakupovaných v propadu a držených, 5 % účtu
+Vědomě hazardní režim: 68 % účtu v aktivních obchodech, 30 % v poklesové
+strategii (viz níže), 5 % účtu
 v riziku na obchod, max. 3 pozice (každá až polovina účtu), volatilnější akcie
 (TSLA, COIN, MSTR, IONQ, RKLB…), kratší signály a těsnější stopy.
 
 Navíc má pravidlo **prudkého růstu**: akcie, která dnes vyroste o 7 % a víc,
 se kupuje i bez rostoucího trendu a bez proražení maxima (typicky Nvidia +20 %
 po výsledcích). Stop-loss je pak širší: max. ~40 % dnešního pohybu zpět.
+
+**Poklesová strategie (30 % účtu):** koupí velkou firmu (Apple, Nvidia, SAP,
+ASML…), která za 5 dní spadla aspoň o 8 %, a prodá ji při +4 % od nákupu.
+**Záměrně bez stop-lossu:** když dál padá, drží ji, dokud cíle nedosáhne. Peníze
+tak můžou v propadlé akcii zůstat zamrzlé dlouho. Strop: max. 4 pozice po 7,5 %
+účtu. `/flatten` tyto pozice neprodává.
 
 Zapnutí: v `.env` nastav `BOT_CONFIG=config-aggressive.yaml` a `systemctl restart tradebot`.
 

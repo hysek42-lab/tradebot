@@ -299,7 +299,8 @@ def test_aggressive_config_loads_and_trades(tmp_path, monkeypatch):
     monkeypatch.setenv("BOT_CONFIG", "config-aggressive.yaml")
     monkeypatch.setenv("BOT_DATA_DIR", str(tmp_path))
     c = load_config()
-    assert c["allocation"]["core_pct"] == 0.20 and c["risk"]["max_positions"] == 3
+    assert c["allocation"]["dip_pct"] == 0.30 and c["risk"]["max_positions"] == 3
+    c["dip"]["enabled"] = False
     c["core"]["etfs"] = []
     c["markets"]["us"]["universe"] = ["UPPY"]
     c["markets"]["eu"]["enabled"] = False
@@ -374,3 +375,37 @@ def test_spike_entry_catches_big_day_in_downtrend(cfg):
     assert cands[0].stop <= spike_px - 0.4 * (spike_px - last) + 1e-9
     # +3 % day in a downtrend is not a spike
     assert strategies.active_candidates({"DOWNY": down}, {"DOWNY": last * 1.03}, agg) == []
+
+
+def test_dip_strategy_buys_drop_holds_losses_sells_at_target(cfg):
+    agg = yaml.safe_load((ROOT / "config-aggressive.yaml").read_text())
+    agg["data_dir"] = cfg["data_dir"]
+    agg["markets"]["eu"]["enabled"] = False
+    agg["markets"]["us"]["universe"] = []
+    agg["dip"]["universe"] = {"us": ["UPPY"]}
+    df = make_df(0.002)
+    last5_high = float(df["Close"].iloc[-5:].max())
+    px = last5_high * 0.90                                   # -10 % from 5-day high
+    broker = FakeBroker()
+    broker.prices["UPPY_US_EQ"] = px
+    data = FakeData({"UPPY": df}, {"UPPY": px})
+    eng, tg = make_engine(agg, broker, data)
+    eng.cycle()
+    pos = eng.state.position("UPPY_US_EQ")
+    assert pos and pos["bucket"] == "dip" and pos["broker_stop_id"] is None
+    assert not broker.stops                                    # no stop-loss at the broker
+    assert any("NÁKUP (pokles)" in m for m in tg.sent)
+    # falls further: must NOT sell, and must not buy more of the same stock
+    data.prices["UPPY"] = broker.prices["UPPY_US_EQ"] = px * 0.6
+    eng.cycle()
+    assert eng.state.position("UPPY_US_EQ") and len(broker.orders) == 1
+    # /flatten closes active trades only, dip positions stay
+    tg.queue = ["/flatten"]
+    eng.cycle()
+    assert eng.state.position("UPPY_US_EQ")
+    eng.state.set("manual_stop", False)
+    # reaches +4 % above entry -> sells
+    data.prices["UPPY"] = broker.prices["UPPY_US_EQ"] = pos["entry_price"] * 1.05
+    eng.cycle()
+    assert eng.state.position("UPPY_US_EQ") is None
+    assert any("PRODEJ UPPY" in m and "cíl +4%" in m for m in tg.sent)

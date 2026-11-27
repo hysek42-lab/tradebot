@@ -1,7 +1,7 @@
 # AGRESIVNÍ varianta – vědomě vysoké riziko („hazard s pravidly“)
 # Aktivace: v .env nastav BOT_CONFIG=config-aggressive.yaml a restartuj bota.
 #
-# Oproti základní verzi: menší ETF část (20 %), dvojnásobné riziko na obchod,
+# Oproti základní verzi: místo ETF poklesová strategie (30 %), dvojnásobné riziko na obchod,
 # koncentrace do max. 3 pozic, volatilnější tituly, těsnější stopy.
 # Očekávej velké výkyvy oběma směry; série 5–6 ztrátových obchodů za sebou
 # znamená pokles účtu o 25–30 %.
@@ -9,8 +9,9 @@ environment: demo
 dry_run: false
 
 allocation:
-  core_pct: 0.20     # ETF nakupované v propadu a držené
-  active_pct: 0.78
+  core_pct: 0.0
+  active_pct: 0.68   # proražení a prudký růst, se stop-lossy
+  dip_pct: 0.30      # nákup propadlých akcií, prodej po malém růstu, bez stop-lossu
   cash_buffer_pct: 0.02
 
 risk:
@@ -61,6 +62,24 @@ markets:
       min_atr_pct: 0.02
     universe: [RHM.DE, IFX.DE, ENR.DE, ZAL.DE, DHER.DE, AIXA.DE, HAG.DE, CBK.DE, MTX.DE, R3NK.DE,
                 STMPA.PA, UBI.PA, AIR.PA, ASML.AS, ADYEN.AS, BESI.AS, ASM.AS]
+
+# Poklesová strategie: koupí akcii po prudkém propadu, prodá po malém růstu.
+# ZÁMĚRNĚ BEZ STOP-LOSSU: když akcie neroste, drží ji, dokud cíle nedosáhne.
+# Riziko: peníze můžou v propadlé akcii zůstat zamrzlé dlouho (i navždy).
+# Strop: max. dip_pct účtu (30 %), rozdělené do max_positions pozic.
+dip:
+  enabled: true
+  max_positions: 4           # 4 × 7,5 % účtu
+  drop_days: 5               # pokles měřený od maxima posledních 5 dní
+  min_drop_pct: 0.08         # koupí po poklesu aspoň o 8 %
+  take_profit_pct: 0.04      # prodá při +4 % od nákupu
+  min_price: 5
+  min_dollar_volume: 20000000
+  universe:
+    # větší a stabilnější firmy, u kterých je návrat pravděpodobnější
+    us: [AAPL, MSFT, NVDA, AMZN, GOOGL, META, AVGO, AMD, TSM, NFLX,
+         CRM, ADBE, ORCL, COST, V, MA, JPM, LLY, UNH, TSLA]
+    eu: [SAP.DE, SIE.DE, ALV.DE, ASML.AS, MC.PA, AIR.PA, SU.PA, OR.PA]
 
 core:
   run_weekday: 0
