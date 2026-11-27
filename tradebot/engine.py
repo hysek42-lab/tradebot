@@ -151,6 +151,7 @@ class Engine:
         self.maybe_report(total)
 
         open_markets = [m for m in self.markets() if self.market_open(m)]
+        self.state.set("diag_markets", {"ts": time.time(), "open": open_markets})
         if not open_markets:
             return
 
@@ -266,6 +267,10 @@ class Engine:
         daily = self.data.daily(universe)
         prices = {s: p for s, (p, _) in self.data.last_prices(list(daily)).items()}
         candidates = strategies.active_candidates(daily, prices, acfg)
+        self.state.set(f"diag_scan_{market}", {
+            "ts": time.time(), "titles": len(tickers), "matched": len(universe),
+            "daily": len(daily), "prices": len(prices),
+            "candidates": [c.symbol for c in candidates[:5]]})
         if not candidates:
             return 0.0
 
@@ -405,6 +410,17 @@ class Engine:
                  f"Volná hotovost: {float(s['cash']['availableToTrade']):.2f}",
                  f"Bot: {'ZASTAVEN' if self.state.get('manual_stop') else 'běží'} "
                  f"({self.cfg['environment']}{', dry run' if self._dry() else ''})"]
+        diag = self.state.get("diag_markets")
+        if diag:
+            ago = (time.time() - diag["ts"]) / 60
+            lines.append(f"Poslední běh před {ago:.0f} min, otevřené trhy: "
+                         f"{', '.join(m.upper() for m in diag['open']) or 'žádný'}")
+        for name in self.markets():
+            d = self.state.get(f"diag_scan_{name}")
+            if d:
+                lines.append(f"Sken {name.upper()} před {(time.time() - d['ts']) / 60:.0f} min: "
+                             f"{d['matched']}/{d['titles']} titulů, data {d['daily']}, ceny {d['prices']}, "
+                             f"signály: {', '.join(d['candidates']) or 'žádné'}")
         for p in self.state.positions("active"):
             lines.append(f"- {p['symbol']}: {p['quantity']} ks, vstup {p['entry_price']:.2f}, "
                          f"stop {p['stop']:.2f}")
